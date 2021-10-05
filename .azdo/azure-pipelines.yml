@@ -1,0 +1,62 @@
+pool:
+  vmImage: 'ubuntu-latest'
+  name: 'GenericPoolLinux'
+variables:
+  - group: DSES-DEMO-APP-CSHARP
+
+trigger:
+  branches:
+    include:
+    - 'master'
+
+stages:
+
+- template: ./templates/stages/trufflehog-stage.yml
+  parameters:
+    targetBranch: $(Build.SourceBranchName)
+
+- template: ./templates/stages/dotnet-test-stage.yml
+
+- template: ./templates/stages/checkmarx-stage.yml
+  parameters:
+    serviceName: $(CX_SERVICE)
+    projectName: $(CX_PROJECT)
+    teamName: $(CX_TEAM)
+
+- template: ./templates/stages/docker-build-stage.yml
+  parameters:
+    acrServicePrincipal: $(ACR_SERVICE_PRINCIPAL)
+    azureSubscription: $(AZURE_SUBSCIRPTION)
+    azureContainerRegistry: $(ACR_REGISTRY_JSON)
+    azureContainerRegistryUrl: $(ACR_REGISTRY_URL)
+    databaseUrl: $(SQLITE_CONF)
+    dockerComposeFile: $(DOCKER_COMPOSE_FILE)
+    displayName: 'Build Docker Container'
+
+- template: ./templates/stages/docker-push-stage.yml
+  parameters:
+    acrServicePrincipal: $(ACR_SERVICE_PRINCIPAL)
+    azureSubscription: $(AZURE_SUBSCIRPTION)
+    azureContainerRegistry: $(ACR_REGISTRY_JSON)
+    azureContainerRegistryUrl: $(ACR_REGISTRY_URL)
+    databaseUrl: $(SQLITE_CONF)
+    dockerComposeFile: $(DOCKER_COMPOSE_FILE)
+    displayName: 'Scan Docker Contianer and Push'
+
+- template: ./templates/stages/blackduck-stage.yml
+  parameters:
+    blackduckUrl: $(BLACKDUCK_URL)
+    blackduckApiToken: $(BLACKDUCK_API_TOKEN)
+    blackduckProjectName: $(Build.Repository.Name)
+    blackduckBranchName: $(Build.SourceBranchName)
+    projectDirToInspect: $(Build.BinariesDirectory)
+
+- template: ./templates/stages/deploy-env-stage.yml
+  parameters:
+    azureSubscription: $(AZURE_SUBSCIRPTION)
+    appName: $(APP_NAME)
+    resourceGroupName: $(APP_RESOURCE_GROUP)
+    containerImageName: $(CONTAINER_IMAGE_NAME)
+    containerCommand: $(DOCKER_ENTRYPOINT)
+    environment: 'SQLI'
+    slotname: 'sqli'

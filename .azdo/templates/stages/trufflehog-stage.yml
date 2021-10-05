@@ -1,0 +1,19 @@
+parameters:
+- name: 'pool'
+  type: object
+  default:
+    name: 'GenericPool1'
+    demands:
+    - python37
+- name: 'targetBranch'
+  type: string
+  default: 'refs/heads/master'
+
+stages:
+- stage: TruffleHog
+  displayName: 'TruffleHog Scan'
+  jobs:
+  - template: ../jobs/trufflehog-job.yml
+    parameters:
+      pool: '${{ parameters.pool }}'
+      targetBranch: '${{ parameters.targetBranch }}'

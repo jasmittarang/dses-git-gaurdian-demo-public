@@ -1,0 +1,140 @@
+parameters:
+  serviceName: ''
+  projectName: ''
+  teamName: ''
+  preset: 'ASA-SDLC'
+  incrementalScan: false
+  synchronise: true
+  folderExclusion: 'cvs, .svn, .hg , .git, .bzr, bin , obj,  backup, .idea'
+  fileExtension: '!*.DS_Store,!*.ipr,!*.iws,!*.bak,!*.tmp,!*.aac,!*.aif,!*.iff,!*.m3u,!*.mid,!*.mp3,!*.mpa,!*.ra,!*.wav,!*.wma,!*.3g2,!*.3gp,!*.asf,!*.asx,!*.avi,!*.flv,!*.mov,!*.mp4,!*.mpg,!*.rm,!*.swf,!*.vob,!*.wmv,!*.bmp,!*.gif,!*.jpg,!*.png,!*.psd,!*.tif,!*.swf,!*.jar,!*.zip,!*.rar,!*.exe,!*.dll,!*.pdb,!*.7z,!*.gz,!*.tar.gz,!*.tar,!*.gz,!*.ahtm,!*.ahtml,!*.fhtml,!*.hdm,!*.hdml,!*.hsql,!*.ht,!*.hta,!*.htc,!*.htd,!*.war,!*.ear,!*.htmls,!*.ihtml,!*.mht,!*.mhtm,!*.mhtml,!*.ssi,!*.stm,!*.stml,!*.ttml,!*.txn,!*.xhtm,!*.xhtml,!*.class,!*.iml'
+  scanTimeout: ''
+  denyProjectCreation: false
+  vulnerabilityThreshold: false
+  thresholdHigh: ''
+  thresholdMedium: ''
+  thresholdLow: ''
+  osaEnabled: false
+  osaFolderExclusion: ''
+  osaArchiveInclude: '*.zip, *.war, *.ear, *.tgz'
+  osaVulnerabilityThreshold: false
+  osaVulnerabilityThresholdHigh: ''
+  osaVulnerabilityThresholdMedium: ''
+  osaVulnerabilityThresholdLow: ''
+  targetBranch: 'refs/heads/master'
+
+steps:
+
+  - powershell: |
+      # set full branch name
+      Write-Host "INFO [task.setvariable variable=BRANCH_FULL_NAME]$($env:BUILD_SOURCEBRANCH.substring($env:BUILD_SOURCEBRANCH.indexOf('/', 5) + 1))"
+      Write-Host "##vso[task.setvariable variable=BRANCH_FULL_NAME]$($env:BUILD_SOURCEBRANCH.substring($env:BUILD_SOURCEBRANCH.indexOf('/', 5) + 1))"
+    displayName: "Define Branch Name :: ads-ado-templates-security/templates-common/sast/checkmarx/steps/scan-checkmarx.yml"
+
+  - powershell: |
+      Write-Host "Setting Scan Comments"
+      Write-Host "##vso[task.setvariable variable=cxComment]$(System.TeamProject)::$(Build.DefinitionName)::$(Build.Repository.Uri)::$(BRANCH_FULL_NAME)::$(Build.SourceVersion)::$(Build.BuildNumber)"
+      Write-Host "INFO [task.setvariable variable=cxComment]$(System.TeamProject)::$(Build.DefinitionName)::$(Build.Repository.Uri)::$(BRANCH_FULL_NAME)::$(Build.SourceVersion)::$(Build.BuildNumber)"
+    displayName: "Define Checkmarx Comment :: ads-ado-templates-security/templates-common/sast/checkmarx/steps/scan-checkmarx.yml"
+
+  - powershell: |
+      if([string]::isnullorempty('${{ parameters.serviceName }}') -or [string]::isnullorempty('${{ parameters.projectName }}') -or [string]::isnullorempty('${{ parameters.teamName }}')) {
+        Write-Host "##vso[task.logissue type=error;]One or more of the mandatory parameters (serviceName, projectName, teamName) is missing"
+        exit 1
+      }
+      if('$(Build.Reason)' -eq 'PullRequest' -and '$(System.PullRequest.TargetBranch)' -eq '${{ parameters.targetBranch }}') {
+        Write-Host "Adding PR number to project name"
+        $projectName = '${{ parameters.projectName }}-PR$(System.PullRequest.PullRequestId)'
+        Write-Host "##vso[task.setvariable variable=PROJECT_NAME;]$projectName"
+      } else {
+        Write-Host "Adding branch name to project name"
+        $projectName='${{ parameters.projectName }}-$(Build.SourceBranchName)'
+        Write-Host "##vso[task.setvariable variable=PROJECT_NAME;]$projectName"
+      }
+
+      write-host "Summary of parameters used: "
+      write-host "  CheckmarxService: '${{ parameters.serviceName }}'"
+      write-host "  projectName: '$projectName'"
+      write-host "  preset: '${{ parameters.preset }}'"
+      write-host "  fullTeamName: '${{ parameters.teamName }}'"
+      write-host "  comment: '$(CXCOMMENT)'"
+      write-host "  folderExclusion: '${{ parameters.folderExclusion }}'"
+      write-host "  fileExtension: '${{ parameters.fileExtension }}'"
+      write-host "  scanTimeout: '${{ parameters.scanTimeout }}'"
+      write-host "  denyProject: ${{ parameters.denyProjectCreation }}"
+      write-host "  incScan: ${{ parameters.incrementalScan }}"
+      write-host "  syncMode: ${{ parameters.synchronise }}"
+      write-host "  vulnerabilityThreshold: ${{ parameters.vulnerabilityThreshold }}"
+      write-host "    high: '${{ parameters.thresholdHigh }}'"
+      write-host "    medium: '${{ parameters.thresholdMedium }}'"
+      write-host "    low: '${{ parameters.thresholdLow }}'"
+      write-host "  osaEnabled: ${{ parameters.osaEnabled }}"
+      write-host "    osaFolderExclusions: '${{ parameters.osaFolderExclusion }}'"
+      write-host "    osaArchiveInclude: '${{ parameters.osaArchiveInclude }}'"
+      write-host "    osaVulnerabilityThreshold: ${{ parameters.osaVulnerabilityThreshold }}"
+      write-host "      osaHigh: ${{ parameters.osaVulnerabilityThresholdHigh }}"
+      write-host "      osaMedium: ${{ parameters.osaVulnerabilityThresholdMedium }}"
+      write-host "      osaLow: ${{ parameters.osaVulnerabilityThresholdLow }}"
+      write-host "  targetBranch: ${{ parameters.targetBranch }}"
+    displayName: Check parameters used
+  - task: checkmarx.cxsast.cx-scan-task.Security static source code analysis@2019
+    displayName: 'Static Code Analysis (CheckMarx) - branch ${{ parameters.targetBranch }} or PR'
+    inputs:
+      CheckmarxService: '${{ parameters.serviceName }}'
+      projectName: '$(PROJECT_NAME)'
+      preset: '${{ parameters.preset }}'
+      fullTeamName: '${{ parameters.teamName }}'
+      comment: '$(CXCOMMENT)'
+      folderExclusion: '${{ parameters.folderExclusion }}'
+      fileExtension: '${{ parameters.fileExtension }}'
+      scanTimeout: '${{ parameters.scanTimeout }}'
+      denyProject: '${{ parameters.denyProjectCreation }}'
+      incScan: '${{ parameters.incrementalScan }}'
+      syncMode: '${{ parameters.synchronise }}'
+      vulnerabilityThreshold: '${{ parameters.vulnerabilityThreshold }}'
+      high: '${{ parameters.thresholdHigh }}'
+      medium: '${{ parameters.thresholdMedium }}'
+      low: '${{ parameters.thresholdLow }}'
+      osaEnabled: '${{ parameters.osaEnabled }}'
+      osaFolderExclusions: '${{ parameters.osaFolderExclusion }}'
+      osaArchiveInclude: '${{ parameters.osaArchiveInclude }}'
+      osaVulnerabilityThreshold: '${{ parameters.osaVulnerabilityThreshold }}'
+      osaHigh: '${{ parameters.osaVulnerabilityThresholdHigh }}'
+      osaMedium: '${{ parameters.osaVulnerabilityThresholdMedium }}'
+      osaLow: '${{ parameters.osaVulnerabilityThresholdLow }}'
+    condition: |
+      and(
+        succeeded(),
+        or(
+          and(
+            eq(variables['Build.Reason'], 'PullRequest'),
+            eq(variables['System.PullRequest.TargetBranch'], '${{ parameters.targetBranch }}')
+          ),
+          eq(variables['Build.SourceBranch'], '${{ parameters.targetBranch }}')
+        )
+      )
+
+  - task: checkmarx.cxsast.cx-scan-task.Security static source code analysis@2019
+    displayName: 'Static Code Analysis (CheckMarx)'
+    inputs:
+      CheckmarxService: '${{ parameters.serviceName }}'
+      projectName: '$(PROJECT_NAME)'
+      preset: '${{ parameters.preset }}'
+      fullTeamName: '${{ parameters.teamName }}'
+      comment: '$(CXCOMMENT)'
+      folderExclusion: '${{ parameters.folderExclusion }}'
+      fileExtension: '${{ parameters.fileExtension }}'
+      scanTimeout: '${{ parameters.scanTimeout }}'
+      denyProject: '${{ parameters.denyProjectCreation }}'
+      incScan: '${{ parameters.incrementalScan }}'
+      syncMode: true
+      vulnerabilityThreshold: '${{ parameters.vulnerabilityThreshold }}'
+      high: '${{ parameters.thresholdHigh }}'
+      medium: '${{ parameters.thresholdMedium }}'
+      low: '${{ parameters.thresholdLow }}'
+      osaEnabled: '${{ parameters.osaEnabled }}'
+      osaFolderExclusions: '${{ parameters.osaFolderExclusion }}'
+      osaArchiveInclude: '${{ parameters.osaArchiveInclude }}'
+      osaVulnerabilityThreshold: '${{ parameters.osaVulnerabilityThreshold }}'
+      osaHigh: '${{ parameters.osaVulnerabilityThresholdHigh }}'
+      osaMedium: '${{ parameters.osaVulnerabilityThresholdMedium }}'
+      osaLow: '${{ parameters.osaVulnerabilityThresholdLow }}'

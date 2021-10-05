@@ -1,0 +1,57 @@
+parameters:
+- name: 'targetBranch'
+  type: string
+  default: 'refs/heads/master'
+
+steps:
+- pwsh: |
+    pip3 install --upgrade pip virtualenv setuptools
+    cd $(Agent.BuildDirectory)
+    python -m virtualenv env
+    $(Agent.BuildDirectory)\env\Scripts\activate.bat
+  failOnStderr: false
+  displayName: 'Install and Activate Python Virtual Environment'
+
+- pwsh: >
+    $(Agent.BuildDirectory)\env\Scripts\activate.ps1 ;
+    pip3 install --disable-pip-version-check
+    --upgrade satclient
+    --extra-index-url http://dml.bpweb.bp.com/artifactory/api/pypi/bp-aes-sat-release-local/simple
+    --trusted-host dml.bpweb.bp.com
+  displayName: 'Install satclient'
+
+# Invoke the satclient
+- pwsh: >
+    $(Agent.BuildDirectory)\env\Scripts\activate.ps1 ;
+    satclient scan `
+    -a "$(System.TeamProject)" `
+    -s "$(Build.DefinitionName)" `
+    --pipeline ocp `
+    --control-point code_scan `
+    --artifact-platform vsts `
+    --artifact-location "$(Build.Repository.Uri)" `
+    --artifact-branch "$(Build.SourceBranch)" `
+    --artifact-commit "$(Build.SourceVersion)" `
+    --artifact-auth-token $(System.AccessToken) `
+    -r "$(Build.BuildNumber)"
+  workingDirectory: '$(Build.SourcesDirectory)'
+  failOnStderr: false
+  displayName: 'Invoke satclient - Incremental Scan'
+  condition: and(succeeded(), notIn(variables['Build.SourceBranch'], '${{ parameters.targetBranch }}'))
+
+- pwsh: >
+    $(Agent.BuildDirectory)\env\Scripts\activate.ps1 ;
+    satclient scan `
+    -a "$(System.TeamProject)" `
+    -s "$(Build.DefinitionName)" `
+    --pipeline ocp `
+    --control-point code_scan `
+    --artifact-platform vsts `
+    --artifact-location "$(Build.Repository.Uri)" `
+    --artifact-branch "$(Build.SourceBranch)" `
+    --artifact-commit HEAD `
+    --artifact-auth-token $(System.AccessToken) `
+    -r "$(Build.BuildNumber)"
+  workingDirectory: '$(Build.SourcesDirectory)'
+  failOnStderr: false
+  displayName: 'Invoke satclient - Full Scan'

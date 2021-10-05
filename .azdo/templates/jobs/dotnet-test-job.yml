@@ -1,0 +1,6 @@
+jobs:
+  - job: DotnetTest
+    displayName: 'Dotnet Test'
+    steps:
+      - template: ../steps/dotnet-test-step.yml
+      - template: ../steps/cleanup-step.yml

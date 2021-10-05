@@ -1,0 +1,24 @@
+parameters:
+- name: 'pool'
+  type: object
+  default:
+    name: 'GenericPool1'
+    demands:
+    - python37
+- name: 'targetBranch'
+  type: string
+  default: 'refs/heads/master'
+
+jobs:
+- job: TruffleHog
+  displayName: 'Invoke satclient :: TruffleHog Job'
+  workspace:
+    clean: all
+  pool: ${{ parameters.pool }}
+
+  steps:
+  - template: ../steps/trufflehog-step.yml
+    parameters:
+      targetBranch: '${{ parameters.targetBranch }}'
+
+  - template: ../steps/cleanup-step.yml

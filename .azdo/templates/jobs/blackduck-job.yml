@@ -1,0 +1,29 @@
+parameters:
+  blackduckUrl: 'https://bpuk.app.blackduck.com'
+  blackduckApiToken: ''
+  blackduckProjectName: '$(Build.Repository.Name)'
+  blackduckBranchName: ''
+  projectDirToInspect: ''
+
+jobs:
+  - job: Blackduck
+    displayName: 'Blackduck Artifact Upload'
+    workspace:
+      clean: all
+    steps:
+      - template: ../steps/download-artifacts.yml
+
+      - template: ../steps/blackduck-step.yml
+        parameters:
+          blackduckUrl: ${{ parameters.blackduckUrl }}
+          blackduckAuth: 'token'
+          blackduckApiToken: ${{ parameters.blackduckApiToken }}
+          blackduckProjectName: $(Build.Repository.Name)
+          blackduckBranchName: ${{ parameters.blackduckBranchName }}
+          projectDistribution: 'INTERNAL'
+          versionLabel: 'HEAD'
+          blackduckLoggingLevel: 'INFO'
+          projectDirToInspect: ${{ parameters.projectDirToInspect }}
+
+      - template: ../steps/cleanup-step.yml
+

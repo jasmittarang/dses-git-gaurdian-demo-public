@@ -1,0 +1,30 @@
+parameters:
+  acrServicePrincipal: ''
+  azureSubscription: ''
+  azureContainerRegistry: ''
+  azureContainerRegistryUrl: ''
+  dockerComposeFile: '**/docker-compose.yml'
+  databaseUrl: ''
+  buildDockerAndPublishArtifacts: false
+  pushDockerToContainerRegistry: false
+  demoScanner: false
+  displayName: ''
+
+jobs:
+  - job: DockerBuildPush
+    displayName: '${{ parameters.displayName }}'
+    steps:
+      - template: ../steps/docker-build-push-step.yml
+        parameters:
+          acrServicePrincipal: ${{ parameters.acrServicePrincipal }}
+          azureSubscription: ${{ parameters.azureSubscription }}
+          azureContainerRegistry: ${{ parameters.azureContainerRegistry }}
+          azureContainerRegistryUrl: ${{ parameters.azureContainerRegistryUrl }}
+          dockerComposeFile: ${{ parameters.dockerComposeFile }}
+          databaseUrl: ${{ parameters.databaseUrl }}
+          buildDockerAndPublishArtifacts: ${{ parameters.buildDockerAndPublishArtifacts }}
+          pushDockerToContainerRegistry: ${{ parameters.pushDockerToContainerRegistry }}
+          demoScanner: ${{ parameters.demoScanner }}
+
+      - template: ../steps/cleanup-step.yml
+

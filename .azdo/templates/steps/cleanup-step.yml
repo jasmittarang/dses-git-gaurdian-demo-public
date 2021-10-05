@@ -1,0 +1,9 @@
+# Clean up task template
+  steps:
+  - bash: |
+      rm -fr $(Pipeline.Workspace)/a/*
+      rm -fr $(Pipeline.Workspace)/s/*
+      rm -fr $(Pipeline.Workspace)/b/*
+    displayName: 'Cleanup $(Pipeline.Workspace)'
+    continueOnError: true
+    condition: always()

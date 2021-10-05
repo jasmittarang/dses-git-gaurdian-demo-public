@@ -1,0 +1,131 @@
+parameters:
+  blackduckUrl: 'https://bpuk.app.blackduck.com'
+  blackduckAuth: 'basic'
+  blackduckUserName: ''
+  blackduckPassword: ''
+  blackduckApiToken: ''
+  blackduckProjectName: '$(Build.Repository.Name)'
+  blackduckBranchName: ''
+  projectDistribution: 'INTERNAL'
+  versionLabel: 'HEAD'
+  blackduckLoggingLevel: 'INFO'
+  additionalArgs: ''
+  continueOnError: false
+  blackduckWaitForResults: false
+  blackduckRiskReport: false
+  blackduckNoticeReport: false
+  blackduckReportWaitTimeout: 900
+  projectDirToInspect: ''
+  detectJarVersion: 6.2.1
+  detectJavaOpts: -Xmx8g
+
+
+steps:
+  - pwsh: |
+      # set full branch name
+      Write-Host "INFO [task.setvariable variable=BRANCH_FULL_NAME]$($env:BUILD_SOURCEBRANCH.substring($env:BUILD_SOURCEBRANCH.indexOf('/', 5) + 1))"
+      Write-Host "##vso[task.setvariable variable=BRANCH_FULL_NAME]$($env:BUILD_SOURCEBRANCH.substring($env:BUILD_SOURCEBRANCH.indexOf('/', 5) + 1))"
+    displayName: "Define Branch Name :: ads-ado-templates-security/templates-common/sca/blackduck/steps/scan-blackduck.yml"
+
+  - powershell: |
+      if (!(("${{ parameters.blackduckAuth }}" -eq "basic") -or ("${{ parameters.blackduckAuth }}" -eq "token"))) {
+        Write-Host "##vso[task.logissue type=error;]Blackduck authentication [blackduckAuth] is not 'token' or 'basic'"
+        exit 1
+      }
+
+      # if basic auth, then check for username and password
+      if ("${{ parameters.blackduckAuth }}" -eq "basic") {
+        # check if username / password exist
+        if([string]::isnullorempty('${{ parameters.blackduckUserName }}')) {
+          Write-Host "##vso[task.logissue type=error;]Mandatory parameter [blackduckUserName] is missing"
+          exit 1
+        }
+        if([string]::isnullorempty('${{ parameters.blackduckPassword }}')) {
+          Write-Host "##vso[task.logissue type=error;]Mandatory parameter [blackduckPassword] is missing"
+          exit 1
+        }
+        Write-Host "Authentication is Basic"
+        Write-Host "##vso[task.setvariable variable=BLACKDUCK_CREDS]--blackduck.username='${{ parameters.blackduckUserName }}' --blackduck.password='${{ parameters.blackduckPassword }}'"
+      }
+
+      # if token auth, then check api key
+      if ("${{ parameters.blackduckAuth }}" -eq "token") {
+        if([string]::isnullorempty('${{ parameters.blackduckApiToken }}')) {
+          Write-Host "##vso[task.logissue type=error;]Mandatory parameter [blackduckApiToken] is missing"
+          exit 1
+        }
+        Write-Host "##vso[task.setvariable variable=BLACKDUCK_CREDS]--blackduck.api.token=${{ parameters.blackduckApiToken }}"
+        Write-Host "Authentication is Token"
+      }
+
+      # set version name param
+      if ("${{ parameters.blackduckBranchName }}" -ne '') {
+        Write-Host "##vso[task.setvariable variable=BLACKDUCK_VERSION]${{ parameters.blackduckBranchName }}-${{ parameters.versionLabel }} "
+        Write-Host "BlackDuck Version is ${{ parameters.blackduckBranchName }}-${{ parameters.versionLabel }} & Branch Name is $Env:BRANCH_FULL_NAME"
+      }
+      else{
+        $Env:AGENT_BUILDDIRECTORY
+        Write-Host "##vso[task.setvariable variable=BLACKDUCK_VERSION]$(BRANCH_FULL_NAME)-${{ parameters.versionLabel }}"
+        Write-Host "BlackDuck Version is $(BRANCH_FULL_NAME)-${{ parameters.versionLabel }} & Branch Name is $Env:BRANCH_FULL_NAME"
+      }
+    displayName: "Define Variables :: ads-ado-templates-security/templates-common/sca/blackduck/steps/scan-blackduck.yml"
+
+  - bash: |
+      if [[ `uname` == *"NT"* ]] || [[ `uname` == *"UWIN"* ]]; then
+        echo "##vso[task.setvariable variable=PATH_SEPARATOR]\\"
+      else
+        echo "##vso[task.setvariable variable=PATH_SEPARATOR]/"
+      fi
+    displayName: "Define PATH_SEPARATOR variable :: ads-ado-templates-security/templates-common/sca/blackduck/steps/scan-blackduck.yml"
+
+  - bash: |
+      if [[ -n "$(JAVA_HOME)" ]]; then
+        JAVA_EXECUTABLE='$(JAVA_HOME)$(PATH_SEPARATOR)bin$(PATH_SEPARATOR)java'
+      else
+        JAVA_EXECUTABLE='java'
+      fi
+      echo "##vso[task.setvariable variable=JAVA_EXECUTABLE]${JAVA_EXECUTABLE}"
+      echo "Java executable path: ${JAVA_EXECUTABLE}"
+    displayName: "Set JAVA_EXECUTABLE variable :: ads-ado-templates-security/templates-common/sca/blackduck/steps/scan-blackduck.yml"
+
+  - bash: |
+      CURL_RETURN_CODE=$(curl --silent -w "%{http_code}" -L -o "${DETECT_JAR_DOWNLOAD_DIR}${PATH_SEPARATOR}${DETECT_JAR_FILENAME}" "${DETECT_SOURCE_URL}")
+      if [[ 200 -eq ${CURL_RETURN_CODE} ]]; then
+        echo "Synopsys Detect downloaded successfully from: ${DETECT_SOURCE_URL}"
+        DETECT_JAR_PATH=${DETECT_JAR_DOWNLOAD_DIR}${PATH_SEPARATOR}${DETECT_JAR_FILENAME}
+        echo "##vso[task.setvariable variable=DETECT_JAR_PATH]${DETECT_JAR_PATH}"
+        echo "Synopsys Detect local file path: ${DETECT_JAR_PATH}"
+      else
+        ERROR_MSG="The curl response was ${CURL_RETURN_CODE}, which is not successful - exiting the build step"
+        echo "##vso[task.LogIssue type=error;]${ERROR_MSG}"
+        exit -1
+      fi
+    env:
+      DETECT_SOURCE_URL: 'https://sig-repo.synopsys.com/bds-integrations-release/com/synopsys/integration/synopsys-detect/${{ parameters.detectJarVersion }}/synopsys-detect-${{ parameters.detectJarVersion }}.jar'
+      DETECT_JAR_DOWNLOAD_DIR: '$(Agent.TempDirectory)'
+      DETECT_JAR_FILENAME: 'synopsys-detect-${{ parameters.detectJarVersion }}.jar'
+    displayName: "Download Synopsys Detect Tool Version ${{ parameters.detectJarVersion }} :: ads-ado-templates-security/templates-common/sca/blackduck/steps/scan-blackduck.yml"
+
+  - bash: >
+      '$(JAVA_EXECUTABLE)' '${{ parameters.detectJavaOpts }}' -jar '$(DETECT_JAR_PATH)'
+      $(BLACKDUCK_CREDS)
+      --blackduck.url=${{ parameters.blackduckUrl }}
+      --detect.project.name=${{ parameters.blackduckProjectName }}
+      --detect.project.version.name=$(BLACKDUCK_VERSION)
+      --detect.project.version.distribution=${{ parameters.projectDistribution }}
+      --detect.bom.aggregate.name=${{ parameters.blackduckProjectName }}-$(BLACKDUCK_VERSION)
+      --detect.code.location.name=${{ parameters.blackduckProjectName }}-$(BLACKDUCK_VERSION)
+      --detect.source.path='${{ parameters.projectDirToInspect }}'
+      --detect.wait.for.results=${{ parameters.blackduckWaitForResults }}
+      --detect.risk.report.pdf=${{ parameters.blackduckRiskReport }}
+      --detect.risk.report.pdf.path='$(Build.ArtifactStagingDirectory)'
+      --detect.notices.report=${{ parameters.blackduckNoticeReport }}
+      --detect.notices.report.path='$(Build.ArtifactStagingDirectory)'
+      --detect.report.timeout=${{ parameters.blackduckReportWaitTimeout }}
+      --logging.level.com.synopsys.integration=${{ parameters.blackduckLoggingLevel }}
+      --detect.custom.fields.version[0].label=additionalInfo
+      --detect.custom.fields.version[0].value='$(System.TeamProject)::$(Build.DefinitionName)::$(Build.Repository.Uri)::$(BRANCH_FULL_NAME)::$(Build.SourceVersion)::$(Build.BuildNumber)'
+      ${{ parameters.additionalArgs }}
+    displayName: "Black Duck Open Source Audit :: ads-ado-templates-security/templates-common/sca/blackduck/steps/scan-blackduck.yml"
+    continueOnError: ${{ parameters.continueOnError }}
+

@@ -1,0 +1,20 @@
+parameters:
+  blackduckUrl: 'https://bpuk.app.blackduck.com'
+  blackduckApiToken: ''
+  blackduckProjectName: '$(Build.Repository.Name)'
+  blackduckBranchName: ''
+  projectDirToInspect: ''
+
+
+stages:
+  - stage: BlackduckStage
+    displayName: 'OSS Blackduck Scan'
+    dependsOn: 'DockerBuildStage'
+    jobs:
+      - template: ../jobs/blackduck-job.yml
+        parameters:
+          blackduckUrl: ${{ parameters.blackduckUrl }}
+          blackduckApiToken: ${{ parameters.blackduckApiToken }}
+          blackduckProjectName: $(Build.Repository.Name)
+          blackduckBranchName: ${{ parameters.blackduckBranchName }}
+          projectDirToInspect: ${{ parameters.projectDirToInspect}}

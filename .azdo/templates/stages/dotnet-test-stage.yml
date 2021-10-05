@@ -1,0 +1,6 @@
+stages:
+  - stage: DotnetTestStage
+    displayName: 'Dotnet Test Stage'
+    dependsOn: 'TruffleHog'
+    jobs:
+      - template: ../jobs/dotnet-test-job.yml

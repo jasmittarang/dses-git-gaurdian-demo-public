@@ -1,0 +1,26 @@
+parameters:
+  acrServicePrincipal: ''
+  azureContainerRegistry: ''
+  azureContainerRegistryUrl: ''
+  azureSubscription: ''
+  databaseUrl: ''
+  dockerComposeFile: ''
+  buildDockerAndPublishArtifacts: true
+  pushDockerToContainerRegistry: false
+
+stages:
+  - stage: DockerBuildStage
+    displayName: 'Docker Build'
+    dependsOn: 'SastStage'
+    jobs:
+      - template: ../jobs/docker-build-push-job.yml
+        parameters:
+          acrServicePrincipal: ${{ parameters.acrServicePrincipal }}
+          azureSubscription: ${{ parameters.azureSubscription }}
+          azureContainerRegistry: ${{ parameters.azureContainerRegistry }}
+          azureContainerRegistryUrl: ${{ parameters.azureContainerRegistryUrl }}
+          databaseUrl: ${{ parameters.databaseUrl }}
+          dockerComposeFile: ${{ parameters.dockerComposeFile }}
+          buildDockerAndPublishArtifacts: ${{ parameters.buildDockerAndPublishArtifacts }}
+          pushDockerToContainerRegistry: ${{ parameters.pushDockerToContainerRegistry }}
+

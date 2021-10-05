@@ -1,0 +1,18 @@
+parameters:
+  azureSubscription: ''
+  appName: ''
+  resourceGroupName: ''
+  slotName: 'production'
+  containerImageName: ''
+  containerCommand: ''
+
+steps:
+  - task: AzureWebAppContainer@1
+    inputs:
+      azureSubscription: ${{ parameters.azureSubscription }}
+      appName: ${{ parameters.appName }}
+      deployToSlotOrASE: true
+      resourceGroupName: ${{ parameters.resourceGroupName }}
+      slotName: ${{ parameters.slotName }}
+      containers: ${{ parameters.containerImageName }}
+      containerCommand: ${{ parameters.containerCommand }}

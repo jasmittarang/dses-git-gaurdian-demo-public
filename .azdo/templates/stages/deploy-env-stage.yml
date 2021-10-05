@@ -1,0 +1,37 @@
+parameters:
+  azureSubscription: ''
+  appName: ''
+  environment: ''
+  resourceGroupName: ''
+  slotName: ''
+  containerImageName: ''
+  containerCommand: ''
+
+stages:
+  - stage: 'Deploy${{ parameters.environment}}'
+    dependsOn: ScanDockerPushStage
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/feature/sast-scan-demo')) 
+    displayName: 'Deploy: ${{ parameters.environment}}'
+    jobs:
+      - deployment: 'Deploy_${{ parameters.environment }}'
+        environment: '${{ parameters.environment }}'
+        strategy:
+          runOnce:
+            preDeploy:
+              steps:
+                - checkout: none
+            deploy:
+              steps:
+                - download: none
+
+                - template: ../steps/deploy-step.yml
+                  parameters:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    appName: ${{ parameters.appName }}
+                    resourceGroupName: ${{ parameters.resourceGroupName }}
+                    containerImageName: ${{ parameters.containerImageName }}
+                    containerCommand: ${{ parameters.containerCommand }}
+                    environment: ${{ parameters.environment }}
+                    slotName: ${{ parameters.slotName }}
+
+                - template: ../steps/cleanup-step.yml

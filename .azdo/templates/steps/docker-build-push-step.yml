@@ -1,0 +1,81 @@
+parameters:
+  acrServicePrincipal: ''
+  azureContainerRegistry: ''
+  azureSubscription: ''
+  dockerComposeFile: '**/docker-compose.yml'
+  azureContainerRegistryUrl: ''
+  buildDockerAndPublishArtifacts: false
+  pushDockerToContainerRegistry: false
+
+steps:
+
+  - task: Docker@2
+    displayName: 'Docker Login'
+    inputs:
+      containerRegistry: ${{ parameters.acrServicePrincipal }}
+      command: 'login'
+  
+  - task: DockerCompose@0
+    displayName: 'Build: $(Build.Repository.Name):$(Build.BuildId)'
+    condition: and(succeeded(), eq(${{ parameters.buildDockerAndPublishArtifacts }}, true))
+    inputs:
+      containerregistrytype: 'Azure Container Registry'
+      azureSubscription: ${{ parameters.azureSubscription }}
+      azureContainerRegistry: ${{ parameters.azureContainerRegistry }}
+      dockerComposeFile: ${{ parameters.dockerComposeFile }}
+      includeSourceTags: true
+      includeLatestTag: true
+      additionalImageTags: $(Build.BuildId)
+      action: 'Build services'
+      displayName: 'Build docker image'
+
+  - task: Bash@3
+    displayName: 'Copy artifacts from docker'
+    condition: and(succeeded(), eq(${{ parameters.buildDockerAndPublishArtifacts }}, true))
+    inputs:
+      targetType: 'inline'
+      script: |
+        docker create -ti --name $(Build.Repository.Name)-$(Build.BuildId)-artifacts ${{ parameters.azureContainerRegistryUrl}}/$(Build.Repository.Name):$(Build.BuildId)
+        docker cp $(Build.Repository.Name)-$(Build.BuildId)-artifacts:/app $(Build.BinariesDirectory)
+        docker rm -f $(Build.Repository.Name)-$(Build.BuildId)-artifacts
+        cp $(Build.SourcesDirectory)/DsesDemoApp/LICENSE $(Build.BinariesDirectory)/app/LICENSE
+
+  - task: PublishPipelineArtifact@1
+    condition: and(succeeded(), eq(${{ parameters.buildDockerAndPublishArtifacts }}, true))
+    inputs:
+      targetPath: '$(Build.BinariesDirectory)'
+      artifact: '$(Build.Repository.Name)_$(Build.BuildId)'
+      publishLocation: 'pipeline'
+
+  - task: Bash@3
+    displayName: 'Scan container for Vulnerabilities'
+    condition: and(succeeded(), eq(${{ parameters.pushDockerToContainerRegistry }}, true), eq(variables['DEMO_SCANNER_BOOL'], true))
+    inputs:
+      targetType: 'inline'
+      script: |
+        docker run --rm aquasec/trivy $(IMAGE_TO_SCAN) > $(Build.BinariesDirectory)/docker_container_scan_result_$(Build.BuildId).txt
+        cat $(Build.BinariesDirectory)/docker_container_scan_result_$(Build.BuildId).txt
+
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish Scan Results'
+    condition: and(succeeded(), eq(${{ parameters.pushDockerToContainerRegistry }}, true), eq(variables['DEMO_SCANNER_BOOL'], true))
+    inputs:
+      targetPath: '$(Build.BinariesDirectory)'
+      artifact: '$(Build.Repository.Name)_container_scan_$(Build.BuildId)'
+
+
+  - task: DockerCompose@0
+    displayName: 'Push: $(Build.Repository.Name):$(Build.BuildId)'
+    condition: and(succeeded(), eq(${{ parameters.pushDockerToContainerRegistry }}, true))
+    inputs:
+      containerregistrytype: 'Azure Container Registry'
+      azureSubscription: ${{ parameters.azureSubscription }}
+      azureContainerRegistry: ${{ parameters.azureContainerRegistry }}
+      dockerComposeFile: ${{ parameters.dockerComposeFile }}
+      includeSourceTags: true
+      includeLatestTag: true
+      additionalImageTags: $(Build.BuildId)
+      action: 'Push services'
+      displayName: 'Push docker image to registry'
+  
